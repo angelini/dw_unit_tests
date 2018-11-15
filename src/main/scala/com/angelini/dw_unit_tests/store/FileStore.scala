@@ -9,7 +9,8 @@ import scala.io.Source
 
 class FileStore extends Store {
   override def find(root: Path, filter: String): Seq[Path] = {
-    val matcher = FileSystems.getDefault.getPathMatcher(s"glob:${root.resolve(filter).normalize}")
+    val matcher = FileSystems.getDefault
+      .getPathMatcher(s"glob:${root.resolve(filter).normalize}")
     Files.walk(root).iterator().asScala.filter(matcher.matches).toSeq
   }
 

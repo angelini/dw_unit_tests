@@ -1,8 +1,8 @@
 package com.angelini.dw_unit_tests
 
-import java.nio.file.{Files, Path}
+import java.nio.file.{Files, Path, Paths}
 
-import com.angelini.dw_unit_tests.store.FileStore
+import com.angelini.dw_unit_tests.store.{FileStore, GCStore}
 
 import scala.collection.JavaConverters._
 
@@ -17,8 +17,6 @@ class HasMetadata extends PartitionTestCase {
 object Main extends App {
   println(s"env: ${sys.env("GOOGLE_APPLICATION_CREDENTIALS")}")
 
-  val store = new FileStore
-  val cases = Seq(new HasMetadata)
   val schema = Schema(Seq(
     Column("id", ColumnType.IntT),
     Column("value", ColumnType.StringT)
@@ -33,10 +31,13 @@ object Main extends App {
     ("data/2018/01/03/other", None)
   ))
 
+  val store = new FileStore
+  val cases = Seq(new HasMetadata)
+
   val exampleFinder = new Finder(tempDir)
     .withFilter("data/*/*/*")
-    .withSchemaParser((paths, store) => {
-      paths.find(_.getFileName.endsWith("schema")).map(path => {
+    .withSchemaParser((store, filePaths) => {
+      filePaths.find(_.getFileName.endsWith("schema")).map(path => {
         Schema.fromJSON(store.read(path))
       })
     })
@@ -44,6 +45,16 @@ object Main extends App {
   for (partition <- exampleFinder.execute(store).partitions) {
     println(s"exampleFinder $partition")
   }
+
+  val gcStore = new GCStore("test-list-version-files")
+  val exampleGcsFinder = new Finder(Paths.get(""))
+      .withFilter("v1/*/*/*/*")
+
+  for (partition <- exampleGcsFinder.execute(gcStore).partitions) {
+    println(s"gcStore $partition")
+    println(s"read ${gcStore.read(partition.path)}")
+  }
+
 
   val exampleDatasets1 = exampleFinder.execute(store)
   val results1 = new Runner()
@@ -60,12 +71,7 @@ object Main extends App {
     .execute()
   Runner.displayResults(results2)
 
-  Files.walk(tempDir)
-    .iterator()
-    .asScala
-    .toSeq
-    .reverse
-    .foreach(_.toFile.delete())
+  deleteFiles(tempDir)
 
   private def createFiles(root: Path, files: Seq[(String, Option[String])]): Unit = {
     files.foreach {
@@ -75,5 +81,14 @@ object Main extends App {
         Files.createDirectories(file.getParent)
         Files.write(file, contents.getOrElse("").getBytes)
     }
+  }
+
+  private def deleteFiles(root: Path): Unit = {
+    Files.walk(root)
+      .iterator()
+      .asScala
+      .toSeq
+      .reverse
+      .foreach(_.toFile.delete())
   }
 }

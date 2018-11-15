@@ -5,7 +5,7 @@ import java.nio.file.Path
 case class Partition(path: Path, schema: Option[Schema], files: Vector[Path])
 
 case class Dataset(root: Path, partitions: Vector[Partition]) {
-  def byPath(path: Path): Option[Partition] =
+  def partitionByPath(path: Path): Option[Partition] =
     partitions.find(_.path == Dataset.removeRoot(root, path))
 }
 

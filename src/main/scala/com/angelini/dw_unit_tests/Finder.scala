@@ -5,7 +5,7 @@ import java.nio.file.{Path, Paths}
 import com.angelini.dw_unit_tests.store.Store
 
 object Finder {
-  type ParseSchemaFn = (Seq[Path], Store) => Option[Schema]
+  type ParseSchemaFn = (Store, Seq[Path]) => Option[Schema]
 }
 
 class Finder(root: Path,
@@ -27,8 +27,8 @@ class Finder(root: Path,
 
   def execute(store: Store): Dataset = {
     Dataset(root, store.find(root, filter).map(path => {
-      val files = cache.byPath(path).map(_.files).getOrElse(store.list(path).toVector)
-      Partition(path, parseSchema(files, store), files)
+      val files = cache.partitionByPath(path).map(_.files).getOrElse(store.list(path).toVector)
+      Partition(path, parseSchema(store, files), files)
     }).toVector)
   }
 }
