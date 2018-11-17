@@ -10,7 +10,11 @@ object Runner {
       for ((test, partitionResults) <- testResults) {
         println(s"   ${test.getClass.getName}")
         for ((partition, result) <- partitionResults) {
-          println(s"        ${partition.path} $result")
+          val relative = partition.path.subpath(
+            dataset.root.getNameCount,
+            partition.path.getNameCount
+          )
+          println(s"        $relative $result")
         }
       }
     }
@@ -32,7 +36,7 @@ class Runner(cases: Map[Dataset, Seq[TestCase]] = Map(),
   def execute(): Runner.Results =
     cases.map {
       case (dataset, tests) =>
-        println(s"Executing ${tests.length} tests for $dataset")
+        println(s"Executing ${tests.length} tests for ${dataset.root}")
         val cachedResults = cache.getOrElse(dataset, Map())
         val results = tests.map {
           case test: PartitionTestCase =>

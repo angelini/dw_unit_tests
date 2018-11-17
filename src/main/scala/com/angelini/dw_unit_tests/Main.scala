@@ -1,8 +1,9 @@
 package com.angelini.dw_unit_tests
 
+import java.nio.ByteBuffer
 import java.nio.file.{Files, Path, Paths}
 
-import com.angelini.dw_unit_tests.store.{FileStore, GCStore}
+import com.angelini.dw_unit_tests.store.{FileStore, GCStore, WriteableStore}
 
 import scala.collection.JavaConverters._
 
@@ -15,24 +16,35 @@ class HasMetadata extends PartitionTestCase {
 }
 
 object Main extends App {
-  println(s"env: ${sys.env("GOOGLE_APPLICATION_CREDENTIALS")}")
+  val Remote: Boolean = false
+  println(s"remote: $Remote")
+
+  if (Remote) {
+    println(s"service_account: ${sys.env("GOOGLE_APPLICATION_CREDENTIALS")}")
+  }
+
+  val store = if (!Remote) new FileStore else new GCStore
+  val cases = Seq(new HasMetadata)
 
   val schema = Schema(Seq(
     Column("id", ColumnType.IntT),
     Column("value", ColumnType.StringT)
   ))
 
-  val tempDir = Files.createTempDirectory("dwut-")
-  createFiles(tempDir, Seq(
+  var tempDir = Files.createTempDirectory("")
+  if (Remote) {
+    tempDir = Paths.get("/test-list-version-files").resolve(
+      Paths.get("/").relativize(tempDir)
+    )
+  }
+
+  createFiles(store, tempDir, Seq(
     ("data/2018/01/01/metadata", Some("123")),
     ("data/2018/01/01/schema", Some(schema.toJSON)),
     ("data/2018/01/02/metadata", Some("456")),
     ("data/2018/01/02/schema", Some(schema.toJSON)),
     ("data/2018/01/03/other", None)
   ))
-
-  val store = new FileStore
-  val cases = Seq(new HasMetadata)
 
   val exampleFinder = new Finder(tempDir)
     .withFilter("data/*/*/*")
@@ -43,18 +55,8 @@ object Main extends App {
     })
 
   for (partition <- exampleFinder.execute(store).partitions) {
-    println(s"exampleFinder $partition")
+    println(s"partition ${partition.path}")
   }
-
-  val gcStore = new GCStore("test-list-version-files")
-  val exampleGcsFinder = new Finder(Paths.get(""))
-      .withFilter("v1/*/*/*/*")
-
-  for (partition <- exampleGcsFinder.execute(gcStore).partitions) {
-    println(s"gcStore $partition")
-    println(s"read ${gcStore.read(partition.path)}")
-  }
-
 
   val exampleDatasets1 = exampleFinder.execute(store)
   val results1 = new Runner()
@@ -71,15 +73,18 @@ object Main extends App {
     .execute()
   Runner.displayResults(results2)
 
-  deleteFiles(tempDir)
+  if (!Remote) {
+    deleteFiles(tempDir)
+  }
 
-  private def createFiles(root: Path, files: Seq[(String, Option[String])]): Unit = {
+  private def createFiles(store: WriteableStore,
+                          root: Path,
+                          files: Seq[(String, Option[String])]): Unit = {
     files.foreach {
       case (path, contents) =>
         val file = root.resolve(path)
-        println(s"creating $file")
-        Files.createDirectories(file.getParent)
-        Files.write(file, contents.getOrElse("").getBytes)
+        store.createDirectory(file.getParent)
+        store.write(file, ByteBuffer.wrap(contents.getOrElse("").getBytes))
     }
   }
 
