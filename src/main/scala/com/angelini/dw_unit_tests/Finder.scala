@@ -10,25 +10,20 @@ object Finder {
 
 class Finder(root: Path,
              filter: String = "*",
-             parseSchema: Finder.ParseSchemaFn = (_, _) => None,
-             cache: Dataset = Dataset(Paths.get("/"), Vector())) {
+             parseSchema: Finder.ParseSchemaFn = (_, _) => None) {
 
   def copy(root: Path = root,
            filter: String = filter,
-           parseSchema: Finder.ParseSchemaFn = parseSchema,
-           cache: Dataset = cache) =
-    new Finder(root, filter, parseSchema, cache)
+           parseSchema: Finder.ParseSchemaFn = parseSchema) =
+    new Finder(root, filter, parseSchema)
 
   def withFilter(pattern: String): Finder = copy(filter = pattern)
 
   def withSchemaParser(parser: Finder.ParseSchemaFn): Finder = copy(parseSchema = parser)
 
-  def withCache(cache: Dataset): Finder = copy(cache = cache)
-
   def execute(store: Store): Dataset = {
     Dataset(root, store.find(root, filter).map(path => {
-      val files = cache.partitionByPath(path).map(_.files).getOrElse(store.list(path).toVector)
-      Partition(path, parseSchema(store, files), files)
+      Partition(path, () => store.list(path).toVector, (files) => parseSchema(store, files))
     }).toVector)
   }
 }

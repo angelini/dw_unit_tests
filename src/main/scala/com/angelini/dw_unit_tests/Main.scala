@@ -55,20 +55,20 @@ object Main extends App {
     })
 
   for (partition <- exampleFinder.execute(store).partitions) {
-    println(s"partition ${partition.path}")
+    println(s"partition: ${partition.path}")
   }
 
-  val exampleDatasets1 = exampleFinder.execute(store)
+  println("")
+
+  val exampleDatasets = exampleFinder.execute(store)
+
   val results1 = new Runner()
-    .withTestsFor(exampleDatasets1, cases)
+    .withTestsFor(exampleDatasets, cases)
     .execute()
   Runner.displayResults(results1)
 
-  val exampleDatasets2 = exampleFinder
-    .withCache(exampleDatasets1)
-    .execute(store)
   val results2 = new Runner()
-    .withTestsFor(exampleDatasets2, cases)
+    .withTestsFor(exampleDatasets, cases)
     .withCache(results1)
     .execute()
   Runner.displayResults(results2)
