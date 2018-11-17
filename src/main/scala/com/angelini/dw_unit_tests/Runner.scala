@@ -9,14 +9,19 @@ object Runner {
     println("-----")
     for ((dataset, testResults) <- results) {
       println(s"${dataset.root}")
-      for ((test, partitionResults) <- testResults) {
-        println(s"   ${test.getClass.getName}")
-        for ((partition, result) <- partitionResults) {
-          val relative = partition.path.subpath(
-            dataset.root.getNameCount,
-            partition.path.getNameCount
-          )
-          println(s"        $relative $result")
+      for ((test, result) <- testResults) {
+        println(s"   ${test.getClass.getName} [$result]")
+        result match {
+          case r: TestExecution.PartitionResults => {
+            for ((partition, pResult) <- r.partitionResults) {
+              val relative = partition.path.subpath(
+                dataset.root.getNameCount,
+                partition.path.getNameCount
+              )
+              println(s"        $relative $pResult")
+            }
+          }
+          case _ => Unit
         }
       }
     }
@@ -25,19 +30,15 @@ object Runner {
 }
 
 class Runner(cases: Map[Dataset, Seq[TestCase]] = Map(),
-             sampler: Sampler = AlwaysSampler,
-             cache: Runner.Results = Map()) {
+             sampler: Sampler = AlwaysSampler) {
 
   def copy(cases: Map[Dataset, Seq[TestCase]] = cases,
-           sampler: Sampler = sampler,
-           cache: Runner.Results = cache) = new Runner(cases, sampler, cache)
+           sampler: Sampler = sampler) = new Runner(cases, sampler)
 
   def withTestsFor(dataset: Dataset, caseSeq: Seq[TestCase]): Runner =
     copy(cases = cases + (dataset -> caseSeq))
 
   def withSampler(sampler: Sampler): Runner = copy(sampler = sampler)
-
-  def withCache(cache: Runner.Results): Runner = copy(cache = cache)
 
   def execute(): Runner.Results =
     cases.filter {
@@ -45,18 +46,21 @@ class Runner(cases: Map[Dataset, Seq[TestCase]] = Map(),
     }.map {
       case (dataset, tests) =>
         println(s"Executing ${tests.length} tests for ${dataset.root}")
-        val cachedResults = cache.getOrElse(dataset, Map())
         val results = tests.map {
           case test: PartitionTestCase =>
-            val cachedResult = cachedResults.getOrElse(test, Map())
             val partitionResults = dataset.partitions
               .filter(sampler.includePartition(dataset, _))
               .map { partition =>
-                (partition, cachedResult.getOrElse(partition, test.run(partition)))
-              }
-            (test, partitionResults.toMap)
+                (partition, test.run(partition))
+              }.toMap
+            val result = if (partitionResults.values.exists(_.failed))
+              TestExecution.Failure("Partition test failure")
+            else
+              TestExecution.Success()
+            (test, TestExecution.PartitionResults(result, partitionResults))
+
           case test: DatasetTestCase =>
-            (test, cachedResults.getOrElse(test, test.run(dataset)))
+            (test, test.run(dataset))
         }
         (dataset, results.toMap)
     }

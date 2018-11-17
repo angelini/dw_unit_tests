@@ -1,9 +1,9 @@
 package com.angelini.dw_unit_tests
 
-trait TestCase
+sealed trait TestCase
 
 trait PartitionTestCase extends TestCase {
-  def run(partition: Partition): TestExecution.PartitionResult
+  def run(partition: Partition): TestExecution.Result
 }
 
 trait DatasetTestCase extends TestCase {

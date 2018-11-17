@@ -9,10 +9,19 @@ import com.angelini.dw_unit_tests.store.{FileStore, GCStore, WriteableStore}
 import scala.collection.JavaConverters._
 
 class HasMetadata extends PartitionTestCase {
-  override def run(partition: Partition): TestExecution.PartitionResult =
+  override def run(partition: Partition): TestExecution.Result =
     partition.files.find(_.getFileName.endsWith("metadata")) match {
       case Some(_) => TestExecution.Success()
       case None => TestExecution.Failure("Metadata not found")
+    }
+}
+
+class HasTwoPartitions extends DatasetTestCase {
+  override def run(dataset: Dataset): TestExecution.Result =
+    dataset.partitions.length match {
+      case 2 => TestExecution.Success()
+      case len if len < 2 => TestExecution.Failure(s"$len is less than 2 partitions")
+      case len if len > 2 => TestExecution.Failure(s"$len is more than 2 parititons")
     }
 }
 
@@ -25,7 +34,7 @@ object Main extends App {
   }
 
   val store = if (!Remote) new FileStore else new GCStore
-  val cases = Seq(new HasMetadata)
+  val cases = Seq(new HasMetadata, new HasTwoPartitions)
 
   val schema = Schema(Seq(
     Column("id", ColumnType.IntT),
@@ -63,17 +72,11 @@ object Main extends App {
 
   val exampleDatasets = exampleFinder.execute(store)
 
-  val results1 = new Runner()
+  val results = new Runner()
     .withTestsFor(exampleDatasets, cases)
+    .withSampler(new RandomSampler(1, 0.75))
     .execute()
-  Runner.displayResults(results1)
-
-  val results2 = new Runner()
-    .withTestsFor(exampleDatasets, cases)
-    .withSampler(new RandomSampler(1, 0.5))
-    .withCache(results1)
-    .execute()
-  Runner.displayResults(results2)
+  Runner.displayResults(results)
 
   if (!Remote) {
     deleteFiles(tempDir)
