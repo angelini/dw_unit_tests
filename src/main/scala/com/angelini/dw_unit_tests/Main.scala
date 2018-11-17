@@ -3,6 +3,7 @@ package com.angelini.dw_unit_tests
 import java.nio.ByteBuffer
 import java.nio.file.{Files, Path, Paths}
 
+import com.angelini.dw_unit_tests.sampler.RandomSampler
 import com.angelini.dw_unit_tests.store.{FileStore, GCStore, WriteableStore}
 
 import scala.collection.JavaConverters._
@@ -69,6 +70,7 @@ object Main extends App {
 
   val results2 = new Runner()
     .withTestsFor(exampleDatasets, cases)
+    .withSampler(new RandomSampler(1, 0.5))
     .withCache(results1)
     .execute()
   Runner.displayResults(results2)

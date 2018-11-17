@@ -1,5 +1,7 @@
 package com.angelini.dw_unit_tests
 
+import com.angelini.dw_unit_tests.sampler.{AlwaysSampler, Sampler}
+
 object Runner {
   type Results = Map[Dataset, Map[TestCase, TestExecution.Result]]
 
@@ -23,27 +25,35 @@ object Runner {
 }
 
 class Runner(cases: Map[Dataset, Seq[TestCase]] = Map(),
+             sampler: Sampler = AlwaysSampler,
              cache: Runner.Results = Map()) {
 
   def copy(cases: Map[Dataset, Seq[TestCase]] = cases,
-           cache: Runner.Results = cache) = new Runner(cases, cache)
+           sampler: Sampler = sampler,
+           cache: Runner.Results = cache) = new Runner(cases, sampler, cache)
 
   def withTestsFor(dataset: Dataset, caseSeq: Seq[TestCase]): Runner =
     copy(cases = cases + (dataset -> caseSeq))
 
+  def withSampler(sampler: Sampler): Runner = copy(sampler = sampler)
+
   def withCache(cache: Runner.Results): Runner = copy(cache = cache)
 
   def execute(): Runner.Results =
-    cases.map {
+    cases.filter {
+      case (dataset, _) => sampler.includeDataset(dataset)
+    }.map {
       case (dataset, tests) =>
         println(s"Executing ${tests.length} tests for ${dataset.root}")
         val cachedResults = cache.getOrElse(dataset, Map())
         val results = tests.map {
           case test: PartitionTestCase =>
             val cachedResult = cachedResults.getOrElse(test, Map())
-            val partitionResults = dataset.partitions.map { partition =>
-              (partition, cachedResult.getOrElse(partition, test.run(partition)))
-            }
+            val partitionResults = dataset.partitions
+              .filter(sampler.includePartition(dataset, _))
+              .map { partition =>
+                (partition, cachedResult.getOrElse(partition, test.run(partition)))
+              }
             (test, partitionResults.toMap)
           case test: DatasetTestCase =>
             (test, cachedResults.getOrElse(test, test.run(dataset)))
