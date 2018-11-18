@@ -43,25 +43,30 @@ class Runner(cases: Map[Dataset, Seq[TestCase]] = Map(),
   def execute(): Runner.Results =
     cases.filter {
       case (dataset, _) => sampler.includeDataset(dataset)
-    }.map {
-      case (dataset, tests) =>
-        println(s"Executing ${tests.length} tests for ${dataset.root}")
-        val results = tests.map {
-          case test: PartitionTestCase =>
-            val partitionResults = dataset.partitions
-              .filter(sampler.includePartition(dataset, _))
-              .map { partition =>
-                (partition, test.run(partition))
-              }.toMap
-            val result = if (partitionResults.values.exists(_.failed))
-              TestExecution.Failure("Partition test failure")
-            else
-              TestExecution.Success()
-            (test, TestExecution.PartitionResults(result, partitionResults))
+    }.map { case (dataset, tests) =>
+      println(s"Executing ${tests.length} tests for ${dataset.root}")
+      val results = tests.par.map { test =>
+        (test, executeTestCase(test, dataset))
+      }
+      (dataset, results.seq.toMap)
+    }
 
-          case test: DatasetTestCase =>
-            (test, test.run(dataset))
-        }
-        (dataset, results.toMap)
+  private def executeTestCase(test: TestCase, dataset: Dataset): TestExecution.Result =
+    test match {
+      case test: PartitionTestCase =>
+        val partitionResults = dataset.partitions
+          .filter(sampler.includePartition(dataset, _))
+          .map { partition =>
+            (partition, test.run(partition))
+          }.toMap
+        TestExecution.PartitionResults(
+          if (partitionResults.values.exists(_.failed))
+            TestExecution.Failure("Partition test failure")
+          else
+            TestExecution.Success(),
+          partitionResults
+        )
+
+      case test: DatasetTestCase => test.run(dataset)
     }
 }
