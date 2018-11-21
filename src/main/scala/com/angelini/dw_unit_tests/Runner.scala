@@ -24,8 +24,8 @@ object Runner {
           case _ => Unit
         }
       }
+      println("")
     }
-    println("")
   }
 }
 
@@ -35,8 +35,12 @@ class Runner(cases: Map[Dataset, Seq[TestCase]] = Map(),
   def copy(cases: Map[Dataset, Seq[TestCase]] = cases,
            sampler: Sampler = sampler) = new Runner(cases, sampler)
 
-  def withTestsFor(dataset: Dataset, caseSeq: Seq[TestCase]): Runner =
-    copy(cases = cases + (dataset -> caseSeq))
+  def withTestsFor(datasets: Seq[Dataset], caseSeq: Seq[TestCase]): Runner =
+    copy(cases =
+      (cases.keySet ++ datasets.toSet).map(dataset => {
+        (dataset, cases.get(dataset).map(_ ++ caseSeq).getOrElse(caseSeq))
+      }).toMap
+    )
 
   def withSampler(sampler: Sampler): Runner = copy(sampler = sampler)
 

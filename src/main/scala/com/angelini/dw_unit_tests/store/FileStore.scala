@@ -9,10 +9,20 @@ import scala.collection.JavaConverters._
 import scala.io.Source
 
 class FileStore extends Store with WriteableStore {
-  override def find(root: Path, filter: String): Seq[Path] = {
-    val matcher = FileSystems.getDefault
-      .getPathMatcher(s"glob:${root.resolve(filter).normalize}")
-    Files.walk(root).iterator().asScala.filter(matcher.matches).toSeq
+  override def find(root: Path,
+                    datasetFilter: String,
+                    paritionFilter: String): Map[Path, Seq[Path]] = {
+    val datasetPath = root.resolve(datasetFilter)
+    val partitionPath = root.resolve(datasetFilter).resolve(paritionFilter).normalize
+
+    val partitionMatcher = FileSystems.getDefault.getPathMatcher(
+      s"glob:${partitionPath}"
+    )
+
+    Files.walk(root).iterator().asScala
+      .filter(partitionMatcher.matches)
+      .toSeq
+      .groupBy(p => p.getRoot.resolve(p.subpath(0, datasetPath.getNameCount)))
   }
 
   override def list(path: Path): Seq[Path] =

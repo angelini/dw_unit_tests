@@ -53,24 +53,28 @@ object Main extends App {
     ("data/2018/01/01/schema", Some(schema.toJSON)),
     ("data/2018/01/02/metadata", Some("456")),
     ("data/2018/01/02/schema", Some(schema.toJSON)),
-    ("data/2018/01/03/other", None)
+    ("data/2018/01/03/other", None),
+    ("other/2017/02/01/metadata", Some("123")),
+    ("other/2017/02/02/metadata", Some("123"))
   ))
 
   val exampleFinder = new Finder(tempDir)
-    .withFilter("data/*/*/*")
+    .withDatasetFilter("*")
+    .withPartitionFilter("*/*/*")
     .withSchemaParser((store, filePaths) => {
       filePaths.find(_.getFileName.endsWith("schema")).map(path => {
         Schema.fromJSON(store.read(path))
       })
     })
 
-  for (partition <- exampleFinder.execute(store).partitions) {
-    println(s"partition: ${partition.path}")
-  }
-
-  println("")
-
   val exampleDatasets = exampleFinder.execute(store)
+
+  for (dataset <- exampleDatasets) {
+    for (partition <- dataset.partitions) {
+      println(s"d: ${dataset.root}, p: ${partition.path}")
+    }
+  }
+  println("")
 
   val results = new Runner()
     .withTestsFor(exampleDatasets, cases)
@@ -85,7 +89,7 @@ object Main extends App {
   private def createFiles(store: WriteableStore,
                           root: Path,
                           files: Seq[(String, Option[String])]): Unit = {
-    files.foreach {
+    files.par.foreach {
       case (path, contents) =>
         val file = root.resolve(path)
         store.createDirectory(file.getParent)

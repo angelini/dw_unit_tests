@@ -13,14 +13,23 @@ import scala.collection.JavaConverters._
 class GCStore extends Store with WriteableStore {
   lazy val client: Storage = buildClient()
 
-  override def find(root: Path, filter: String): Seq[Path] = {
+  override def find(root: Path,
+                    datasetFilter: String,
+                    partitionFilter: String): Map[Path, Seq[Path]] = {
     val (bucket, objPath) = splitBucket(root)
-    val fullFilter = root.resolve(filter).normalize
-    val matcher = FileSystems.getDefault.getPathMatcher(s"glob:$fullFilter")
-    listByPrefix(bucket, prefixBeforeGlob(objPath, filter))
-      .map(path => path.getRoot.resolve(path.subpath(0, fullFilter.getNameCount)))
+
+    val datasetPath = root.resolve(datasetFilter)
+    val partitionPath = datasetPath.resolve(partitionFilter).normalize
+
+    val partitionMatcher = FileSystems.getDefault.getPathMatcher(
+      s"glob:${partitionPath}"
+    )
+
+    listByPrefix(bucket, prefixBeforeGlob(objPath, datasetFilter))
+      .map(p => p.getRoot.resolve(p.subpath(0, partitionPath.getNameCount)))
       .distinct
-      .filter(matcher.matches(_))
+      .filter(partitionMatcher.matches(_))
+      .groupBy(p => p.getRoot.resolve(p.subpath(0, datasetPath.getNameCount)))
   }
 
   override def list(path: Path): Seq[Path] = {

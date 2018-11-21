@@ -5,25 +5,37 @@ import java.nio.file.{Path, Paths}
 import com.angelini.dw_unit_tests.store.Store
 
 object Finder {
-  type ParseSchemaFn = (Store, Seq[Path]) => Option[Schema]
+  type SchemaParserFn = (Store, Seq[Path]) => Option[Schema]
 }
 
 class Finder(root: Path,
-             filter: String = "*",
-             parseSchema: Finder.ParseSchemaFn = (_, _) => None) {
+             datasetFilter: String = "*",
+             partitionFilter: String = "*",
+             schemaParser: Finder.SchemaParserFn = (_, _) => None) {
 
   def copy(root: Path = root,
-           filter: String = filter,
-           parseSchema: Finder.ParseSchemaFn = parseSchema) =
-    new Finder(root, filter, parseSchema)
+           datasetFilter: String = datasetFilter,
+           partitionFilter: String = partitionFilter,
+           schemaParser: Finder.SchemaParserFn = schemaParser) =
+    new Finder(root, datasetFilter, partitionFilter, schemaParser)
 
-  def withFilter(pattern: String): Finder = copy(filter = pattern)
+  def withDatasetFilter(filter: String): Finder = copy(datasetFilter = filter)
 
-  def withSchemaParser(parser: Finder.ParseSchemaFn): Finder = copy(parseSchema = parser)
+  def withPartitionFilter(filter: String): Finder = copy(partitionFilter = filter)
 
-  def execute(store: Store): Dataset = {
-    Dataset(root, store.find(root, filter).map(path => {
-      Partition(path, () => store.list(path).toVector, (files) => parseSchema(store, files))
-    }).toVector)
+  def withSchemaParser(parser: Finder.SchemaParserFn): Finder = copy(schemaParser = parser)
+
+  def execute(store: Store): Seq[Dataset] = {
+    store.find(root, datasetFilter, partitionFilter)
+      .map{ case (dataset, partitions) =>
+        Dataset(dataset, partitions.map(path => {
+          Partition(
+            path,
+            () => store.list(path).toVector,
+            (files) => schemaParser(store, files)
+          )
+        }).toVector)
+      }
+      .toSeq
   }
 }
