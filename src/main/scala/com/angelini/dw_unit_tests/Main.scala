@@ -21,7 +21,7 @@ class HasTwoPartitions extends DatasetTestCase {
     dataset.partitions.length match {
       case 2 => TestExecution.Success()
       case len if len < 2 => TestExecution.Failure(s"$len is less than 2 partitions")
-      case len if len > 2 => TestExecution.Failure(s"$len is more than 2 parititons")
+      case len if len > 2 => TestExecution.Failure(s"$len is more than 2 partitions")
     }
 }
 

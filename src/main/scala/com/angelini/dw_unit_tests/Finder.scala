@@ -13,6 +13,10 @@ class Finder(root: Path,
              partitionFilter: String = "*",
              schemaParser: Finder.SchemaParserFn = (_, _) => None) {
 
+  def this(root: String) {
+    this(Paths.get(root))
+  }
+
   def copy(root: Path = root,
            datasetFilter: String = datasetFilter,
            partitionFilter: String = partitionFilter,

@@ -45,15 +45,19 @@ class Runner(cases: Map[Dataset, Seq[TestCase]] = Map(),
   def withSampler(sampler: Sampler): Runner = copy(sampler = sampler)
 
   def execute(): Runner.Results =
-    cases.filter {
-      case (dataset, _) => sampler.includeDataset(dataset)
-    }.map { case (dataset, tests) =>
-      println(s"Executing ${tests.length} tests for ${dataset.root}")
-      val results = tests.par.map { test =>
-        (test, executeTestCase(test, dataset))
+    cases
+      .filter {
+        case (dataset, _) => sampler.includeDataset(dataset)
       }
-      (dataset, results.seq.toMap)
-    }
+      .par
+      .map { case (dataset, tests) =>
+        println(s"Executing ${tests.length} tests for ${dataset.root}")
+        val results = tests.par.map { test =>
+          (test, executeTestCase(test, dataset))
+        }
+        (dataset, results.seq.toMap)
+      }
+      .seq
 
   private def executeTestCase(test: TestCase, dataset: Dataset): TestExecution.Result =
     test match {
