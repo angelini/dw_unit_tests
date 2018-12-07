@@ -4,12 +4,12 @@ import java.nio.ByteBuffer
 import java.nio.file.{Files, Path, Paths}
 
 import com.angelini.dw_unit_tests.sampler.RandomSampler
-import com.angelini.dw_unit_tests.store.{FileStore, GCStore, WriteableStore}
+import com.angelini.dw_unit_tests.store.{FileStore, GCStore, Store, WriteableStore}
 
 import scala.collection.JavaConverters._
 
 class HasMetadata extends PartitionTestCase {
-  override def run(partition: Partition): TestExecution.Result =
+  override def run(store: Store, dataset: Dataset, partition: Partition): TestExecution.Result =
     partition.files.find(_.getFileName.endsWith("metadata")) match {
       case Some(_) => TestExecution.Success()
       case None => TestExecution.Failure("Metadata not found")
@@ -17,7 +17,7 @@ class HasMetadata extends PartitionTestCase {
 }
 
 class HasTwoPartitions extends DatasetTestCase {
-  override def run(dataset: Dataset): TestExecution.Result =
+  override def run(store: Store, dataset: Dataset): TestExecution.Result =
     dataset.partitions.length match {
       case 2 => TestExecution.Success()
       case len if len < 2 => TestExecution.Failure(s"$len is less than 2 partitions")
@@ -58,14 +58,13 @@ object Main extends App {
     ("other/2017/02/02/metadata", Some("123"))
   ))
 
-  val exampleFinder = new Finder(tempDir)
-    .withDatasetFilter("*")
-    .withPartitionFilter("*/*/*")
+  val exampleFinder = new Finder("*", "*/*/*")
     .withSchemaParser((store, filePaths) => {
       filePaths.find(_.getFileName.endsWith("schema")).map(path => {
         Schema.fromJSON(store.read(path))
       })
     })
+    .withRoots(tempDir)
 
   val exampleDatasets = exampleFinder.execute(store)
 
@@ -78,8 +77,8 @@ object Main extends App {
 
   val results = new Runner()
     .withTestsFor(exampleDatasets, cases)
-    .withSampler(new RandomSampler(1, 0.75))
-    .execute()
+    .withSampler(new RandomSampler(1, 1))
+    .execute(store)
   Runner.displayResults(results)
 
   if (!Remote) {
